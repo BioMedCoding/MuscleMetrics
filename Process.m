@@ -111,7 +111,9 @@ for i=1:n_channel
 end
 
 %% Creazione fatigue plot
-[rms,arv,mnf,mdf,cv] = FatiguePlot(sig,s1,s2,f_sample,IED);
+s1 = -2;
+s2 = -2;
+[rms,arv,mnf,mdf,cv] = FatiguePlot(data,s1,s2,f_sample,IED);
 
 %% Definizioni funzioni custom
 

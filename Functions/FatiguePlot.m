@@ -14,9 +14,12 @@ median_index = find(cumulative_psd >= median_value, 1);
 mdf = f(median_index); %frequenza mediana MDF
 
 %velocità di conduzione
-[xc,del]=xcorr(s2,s1,10);
-[mm,I]=max(xc);
-start=del(I);
-d=delay(real(fft(s2)),imag(fft(s2)),real(fft(s1)),imag(fft(s1)),start);
-cv=IED/(d*1000)*fs;
+% [xc,del]=xcorr(s2,s1,10);
+% [mm,I]=max(xc);
+% start=del(I);
+% d=delay(real(fft(s2)),imag(fft(s2)),real(fft(s1)),imag(fft(s1)),start);
+% cv=IED/(d*1000)*fs;
+
+cv = -1;
+
 end
