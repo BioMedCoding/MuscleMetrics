@@ -122,7 +122,8 @@ rms = zeros(size(sig_filt,2), numero_finestre);
 arv = zeros(size(sig_filt,2),numero_finestre);
 mnf = zeros(size(sig_filt,2),numero_finestre);
 mdf = zeros(size(sig_filt,2),numero_finestre);
-cv = zeros(size(sig_filt,2),numero_finestre);
+%cv = zeros(size(sig_filt,2),numero_finestre);
+cv = zeros(1,numero_finestre);
 
 s1 = -2;
 s2 = -2;
@@ -147,7 +148,7 @@ for j = 1:numero_finestre
     segment = sig_filt(start_idx:end_idx, :);
 
     % Calcola le varie metriche per la finedtra corretta
-    [rms(:, j), arv(:, j), mnf(:, j), mdf(:, j), cv(:, j)] = FatiguePlot(segment, s1, s2, f_sample, IED);
+    [rms(:, j), arv(:, j), mnf(:, j), mdf(:, j), cv(j)] = FatiguePlot(segment, s1, s2, f_sample, IED);
 end
 
 asse_tempi = (0:numero_finestre-1) * risoluzione_calcolo;
@@ -161,8 +162,8 @@ plot(asse_tempi, mnf./mnf(:,1))
 hold on 
 plot(asse_tempi, mdf./mdf(:,1))
 hold on
-plot(asse_tempi, cv./cv(:,1))
-legend('RMS', 'ARV', 'MDF', 'CV')
+plot(asse_tempi, cv/cv(1))
+legend('RMS', 'ARV', 'MDF', 'Mean CV')
 xlabel('Time [s]')
 ylabel('Normalized unit')
 
