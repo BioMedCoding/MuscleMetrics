@@ -81,6 +81,11 @@ end
 vet_good_IC=setdiff(1:3,index_IC);
 % 1:3 crea un vettore [1, 2, 3], che rappresenta gli indici di tutte le componenti indipendenti (IC) estratte dal segnale misto y
 
+% In alternativa Mesin dice:
+% [a, index_IC] = min(mean(abs(diff(icasig'))));
+% vet_good_IC=setdiff(1:3,index_IC);
+% y_artifact_removed = A(:,vet_good_IC)*icasig(vet_good_IC, :);
+
 % ricostruzione delle miscele usando solo le sorgenti buone
 %y_artifact_removed=...;
 icasig_no_artifact = icasig(vet_good_IC, :);

@@ -111,9 +111,82 @@ for i=1:n_channel
 end
 
 %% Creazione fatigue plot
+
+% Segmentazione del segnale e calcolo valori per ogni segmento
+risoluzione_calcolo = 0.5; % Risoluzione in secondi del fatigue plot
+passo = f_sample*risoluzione_calcolo;
+
+numero_finestre = floor(length(sig_filt)/passo);
+
+rms = zeros(size(sig_filt,2), numero_finestre);
+arv = zeros(size(sig_filt,2),numero_finestre);
+mnf = zeros(size(sig_filt,2),numero_finestre);
+mdf = zeros(size(sig_filt,2),numero_finestre);
+cv = zeros(size(sig_filt,2),numero_finestre);
+
 s1 = -2;
 s2 = -2;
-[rms,arv,mnf,mdf,cv] = FatiguePlot(data,s1,s2,f_sample,IED);
+% 
+% for i=1:passo:length(sig_filt)
+%     if i ~= 1
+%         [rms(floor(i/passo)),arv(floor(i/passo)),mnf(floor(i/passo)),mdf(floor(i/passo)),cv(floor(i/passo))] = FatiguePlot(sig_filt(i:i+(passo-1),:),s1,s2,f_sample,IED);
+%     else 
+%         [rms(i),arv(i),mnf(i),mdf(i),cv(i)] = FatiguePlot(sig_filt(i:i+(passo-1)),s1,s2,f_sample,IED);
+%     end
+% end
+
+for j = 1:numero_finestre
+    start_idx = (j-1) * passo + 1;
+    end_idx = start_idx + passo - 1;
+    
+    if end_idx > length(sig_filt)
+        end_idx = length(sig_filt);
+    end
+
+    % Segmenta il segnale nella zona di interesse
+    segment = sig_filt(start_idx:end_idx, :);
+
+    % Calcola le varie metriche per la finedtra corretta
+    [rms(:, j), arv(:, j), mnf(:, j), mdf(:, j), cv(:, j)] = FatiguePlot(segment, s1, s2, f_sample, IED);
+end
+
+asse_tempi = (0:numero_finestre-1) * risoluzione_calcolo;
+
+figure
+plot(asse_tempi,rms./rms(:,1))
+hold on
+plot(asse_tempi, arv./arv(:,1))
+hold on
+plot(asse_tempi, mnf./mnf(:,1))
+hold on 
+plot(asse_tempi, mdf./mdf(:,1))
+hold on
+plot(asse_tempi, cv./cv(:,1))
+legend('RMS', 'ARV', 'MDF', 'CV')
+xlabel('Time [s]')
+ylabel('Normalized unit')
+
+% Calcoli andamenti medi tra i vari canali
+mean_rms = mean(rms);   % Mean lavora sulla prima dimensione non unitaria
+mean_arv = mean(arv);
+mean_mnf = mean(mnf);
+mean_mdf = mean(mdf);
+mean_cv = mean(cv);
+
+figure
+plot(asse_tempi,mean_rms/mean_rms(1))
+hold on
+plot(asse_tempi, mean_arv/mean_arv(1))
+hold on
+plot(asse_tempi, mean_mnf./mean_mnf(1))
+hold on 
+plot(asse_tempi, mean_mdf/mean_mdf(1))
+hold on
+plot(asse_tempi, mean_cv/mean_cv(1))
+legend('Mean RMS', 'Mean ARV', 'Mean MDF', 'Mean CV')
+xlabel('Time [s]')
+ylabel('Normalized unit')
+
 
 %% Definizioni funzioni custom
 
