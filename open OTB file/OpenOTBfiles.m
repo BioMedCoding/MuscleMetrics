@@ -32,6 +32,7 @@ for nSig=1%:length(signals)
 
     vett=zeros(1,nChannel{nSig});
     Gains{nSig}=vett;
+    
     for nChild=1:length(abs.Device.Channels.Adapter)
         localGain{nSig}=str2num(abs.Device.Channels.Adapter{nChild}.Attributes.Gain);
         startIndex{nSig}=str2num(abs.Device.Channels.Adapter{nChild}.Attributes.ChannelStartIndex);

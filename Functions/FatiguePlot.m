@@ -1,20 +1,21 @@
-function [rms, arv, mnf, mdf, cv_total] = FatiguePlot(sig, s1, s2, fs, IED)
+function [rms, arv, mnf, mdf, cv_total] = FatiguePlot(sig_valori, fs, IED, sig_cv)
 
 % input
 % sig: matrix N x M, with N samples and N channels
 
+
 % Preinizializza variabili
-num_channels = size(sig, 2); % Numero di canali, se rispettata sintassi
+num_channels = size(sig_valori, 2); % Numero di canali, se rispettata sintassi
 rms = zeros(1, num_channels);
 arv = zeros(1, num_channels);
 mnf = zeros(1, num_channels);
 mdf = zeros(1, num_channels);
-%cv = zeros(1, num_channels);
+cv = zeros(1, size(sig_cv,2));
 
 % Iera calcolo sui singoli canali
 for ch = 1:num_channels
 
-    current_sig = sig(:, ch);
+    current_sig = sig_valori(:, ch);
     
     % Metriche di ampiezza
     rms(ch) = sqrt(mean(current_sig.^2));   % RMS
@@ -29,19 +30,30 @@ for ch = 1:num_channels
     median_index = find(cumulative_psd >= median_value, 1);
     mdf(ch) = f(median_index); % Median Frequency (MDF)
     
-    % Velocità di conduzione
-
-    % [xc, del] = xcorr(s2, s1, 10);
-    % [mm, I] = max(xc);
-    % start = del(I);
-    % d = delay(real(fft(s2)), imag(fft(s2)), real(fft(s1)), imag(fft(s1)), start);
-    % cv(ch) = IED / (d * 1000) * fs;
+   
 
 end
 
-% Per adattarlo alla funzione
-IED = IED/1000;
+clear ch num_channels
 
-cv_total = mle_CV_est(sig', IED, fs);
+ % Velocità di conduzione
+num_channels = size(sig_cv, 2);
+
+for ch = 1:(num_channels-1)
+        s1 = sig_cv(:,ch);
+        s2 = sig_cv(:,ch+1);
+        [xc, del] = xcorr(s2, s1, 10);
+        [mm, I] = max(xc);
+        start = del(I);
+        d = delay(real(fft(s2)), imag(fft(s2)), real(fft(s1)), imag(fft(s1)), start);
+        cv(ch) = abs(IED / (d * 1000) * fs);
+end
+
+cv_total = cv;
+
+% Per adattarlo alla funzione
+% IED = IED/1000;
+% 
+% cv_total = mle_CV_est(sig_cv(:,:)', IED, fs);
 
 end

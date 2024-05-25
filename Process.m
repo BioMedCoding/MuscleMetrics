@@ -1,7 +1,46 @@
-%% Inizializzazione
+%% ========================== Note iniziali ================================
+% Allo stato attuale la stima della CV risulta essere errata, si ha un
+% canale in particolare che riprota valori non fisiologici
+
+
+
+%% ========================== Inizializzazione =============================
 clear
 close all
 clc
+
+
+
+%% ========================= Parametri generali ============================
+mostra_plot_import = true;
+mostra_plot_differenziali = true;
+
+mostra_fatigue_normalizzati_singoli = true;
+mostra_fatigue_normalizzati__medi = true;
+mostra_fatigue_singoli = true;
+mostra_fatigue_medi = true;
+
+
+separa_muscoli = true;      % Se vero, va a passare alla funzione di analisi solamente la porzione di analisi definita dalla variabile is_bicipite
+is_bicipite = true;         % Se vero, si passano all'analisi solamente i primi 8 canali della matrice, altrimenti gli ultimi 8
+canale_plot = 1;            % Fino a risoluzione, perche non dia problemi deve essere tra 1 e 4
+offset_canali = 8;          % Colonna che separa primo e secondo gruppo muscolare
+
+
+risoluzione_calcolo = 0.5;  % Risoluzione del fatigue plot, in secondi
+
+
+nome_segnale_calcolo_metriche = 'sig_singolo_diff';     % Nome del segnale che si vuole utilizzare nella parte dedicata ai fatigue plot per le metriche di ampiezza e frequenza
+                                % Le possibilità sono: 'sig_mono', 'sig_singolo_diff', 'sig_doppio_diff'
+
+nome_segnale_calcolo_cv = 'sig_singolo_diff';   % Nome del segnale che si vuole utilizzare nella parte dedicata ai fatigue plot per le metriche di cv
+                          % Le possibilità sono:       'sig_mono', 'sig_singolo_diff', 'sig_doppio_diff'
+
+
+IED = 5;                                            % IED espressa in mm
+%% =========================================================================
+
+
 
 %% ======================== Parametri filtraggio ===========================
 tipo_filtro = "cheby2";
@@ -13,11 +52,14 @@ f_envelope = 4;                                     % Frequenza inviluppo
 percH = 1.3;                                        % Percentuale frequenza alta
 visualisation = "no";                               % Mostra grafici filtraggio
 
-IED = 5;                                            % IED espressa in mm
 %% =========================================================================
 
 
-%% Import dati da file OTB e plot iniziali
+
+
+
+%%  ========================= Import dati da file OTB e plot iniziali  =========================
+% (codice docente con modifiche segnalate per evitare problemi con le celle)
 
 FILTERSPEC = {'*.otb+','OTB+ files'; '*.otb','OTB file'; '*.zip', 'zip file'};
 [FILENAME, PATHNAME] = uigetfile(FILTERSPEC,'titolo');
@@ -83,113 +125,253 @@ for nSig=1%:length(signals)
        data(nCh,:)=data(nCh,:)*PowerSupply{nSig}/(2^nADBit{nSig})*1000/Gains{nSig}(nCh);
     end
 
-    MyPlotNormalized(figs{nSig},[1:length(data(1,:))]/Fsample{nSig},data);
-    MyPlot(figure,[1:length(data(1,:))]/Fsample{nSig},data,0.5);
+    if mostra_plot_import
+        MyPlotNormalized(figs{nSig},[1:length(data(1,:))]/Fsample{nSig},data);
+        MyPlot(figure,[1:length(data(1,:))]/Fsample{nSig},data,0.5);
+    end
 
 end
 
 rmdir('tmpopen','s');
+%% =========================================================================
 
-% % theFiles = dir;
-% % for k = 1 : length(theFiles)
-% %   baseFileName = theFiles(k).name;
-% %   fprintf(1, 'Now deleting %s\n', baseFileName);
-% %   delete(baseFileName);
-% % end
-% % 
-% % cd ..;
-% % rmdir('tempopen','s');
 
-%% Filtraggio segnale 
+
+%% ========================= Filtraggio segnale =========================
 data = data';
-n_channel = length(data(1,:));
-sig_filt= zeros(length(data),n_channel);
+n_samples = size(data,1);
+n_channel = size(data,2); 
+sig_mono= zeros(length(data),n_channel);
 
 % Filtraggio segnale
 for i=1:n_channel
-    sig_filt(:,i) = filter_general(data(:,i),tipo_filtro,f_sample,"fL",f_taglio_basso,"fH",f_taglio_alta,"fN",f_notch,"visualisation",visualisation);
+    sig_mono(:,i) = filter_general(data(:,i),tipo_filtro,f_sample,"fL",f_taglio_basso,"fH",f_taglio_alta,"fN",f_notch,"visualisation",visualisation);
+end
+%% =========================================================================
+
+
+
+%% ========================= Creazione segnale singolo e doppio differenziale =========================
+
+num_canali_singolo_diff = n_channel/2;
+num_canali_doppio_diff = num_canali_singolo_diff/2;
+
+% Inizializzazione della matrice dei segnali differenziali
+sig_singolo_diff = zeros(n_samples, num_canali_singolo_diff);
+sig_doppio_diff = zeros(n_samples, num_canali_doppio_diff);
+
+% Popola matrice singolo differenziale
+for i = 1:num_canali_singolo_diff
+    canale_1 = 2 * i - 1;
+    canale_2 = 2 * i;
+    sig_singolo_diff(:, i) = sig_mono(:, canale_2) - sig_mono(:, canale_1);
 end
 
-%% Creazione fatigue plot
+% Popola matrice doppio differenziale
+for i = 1:num_canali_doppio_diff
+    canale_1 = 2 * i - 1;
+    canale_2 = 2 * i;
+    sig_doppio_diff(:, i) = sig_singolo_diff(:, canale_2) - sig_singolo_diff(:, canale_1);
+end
+
+% Plot di controllo mono, singolo e doppio
+if mostra_plot_differenziali
+    if is_bicipite
+        subplot(3,1,1)
+        plot(sig_mono(:,canale_plot))
+        subtitle(['Segnale monopolare canale ' num2str(canale_plot)]);
+    
+        subplot(3,1,2)
+        plot(sig_singolo_diff(:,canale_plot))
+        subtitle(['Segnale singolo differenziale canale ' num2str(canale_plot)]);
+    
+        subplot(3,1,3)
+        plot(sig_doppio_diff(:,canale_plot))
+        subtitle(['Segnale doppio differenziale canale ' num2str(canale_plot)]);
+    else
+        subplot(3,1,1)
+        plot(sig_mono(:,canale_plot+offset_canali))
+        subtitle(['Segnale monopolare canale ' num2str(canale_plot)]);
+    
+        subplot(3,1,2)
+        plot(sig_singolo_diff(:,canale_plot+offset_canali/2))       % Correzione valore avendo meno colonne
+        subtitle(['Segnale singolo differenziale canale ' num2str(canale_plot)]);
+    
+        subplot(3,1,3)
+        plot(sig_doppio_diff(:,canale_plot+offset_canali/4))        % Correzione valore avendo meno colonne
+        subtitle(['Segnale doppio differenziale canale ' num2str(canale_plot)]);
+
+    end
+end
+%% =========================================================================
+
+
+
+
+%% ========================= Creazione fatigue plot=========================
 
 % Segmentazione del segnale e calcolo valori per ogni segmento
-risoluzione_calcolo = 0.5; % Risoluzione in secondi del fatigue plot
 passo = f_sample*risoluzione_calcolo;
+numero_finestre = floor(n_samples/passo);
 
-numero_finestre = floor(length(sig_filt)/passo);
+% Carica i segnali indicati all'inizio per effettuarne la successiva anlisi
+eval(['segnale_metriche = ', nome_segnale_calcolo_metriche, ';']);
+eval(['segnale_cv = ', nome_segnale_calcolo_cv, ';']);
 
-rms = zeros(size(sig_filt,2), numero_finestre);
-arv = zeros(size(sig_filt,2),numero_finestre);
-mnf = zeros(size(sig_filt,2),numero_finestre);
-mdf = zeros(size(sig_filt,2),numero_finestre);
-%cv = zeros(size(sig_filt,2),numero_finestre);
-cv = zeros(1,numero_finestre);
-
-s1 = -2;
-s2 = -2;
-% 
-% for i=1:passo:length(sig_filt)
-%     if i ~= 1
-%         [rms(floor(i/passo)),arv(floor(i/passo)),mnf(floor(i/passo)),mdf(floor(i/passo)),cv(floor(i/passo))] = FatiguePlot(sig_filt(i:i+(passo-1),:),s1,s2,f_sample,IED);
-%     else 
-%         [rms(i),arv(i),mnf(i),mdf(i),cv(i)] = FatiguePlot(sig_filt(i:i+(passo-1)),s1,s2,f_sample,IED);
-%     end
-% end
+if separa_muscoli
+    rms = zeros(n_channel/2, numero_finestre);  % Diviso 2 perché intanto si lavora sempre e solo su metà dei sensori
+    arv = zeros(n_channel/2,numero_finestre);
+    mnf = zeros(n_channel/2,numero_finestre);
+    mdf = zeros(n_channel/2,numero_finestre);
+    cv = zeros(size(segnale_cv,2)/2,numero_finestre);
+else
+    rms = zeros(n_channel, numero_finestre);
+    arv = zeros(n_channel,numero_finestre);
+    mnf = zeros(n_channel,numero_finestre);
+    mdf = zeros(n_channel,numero_finestre);
+    cv = zeros(size(segnale_cv,2),numero_finestre);
+end
 
 for j = 1:numero_finestre
     start_idx = (j-1) * passo + 1;
     end_idx = start_idx + passo - 1;
     
-    if end_idx > length(sig_filt)
-        end_idx = length(sig_filt);
+    if end_idx > length(segnale_metriche)
+        end_idx = length(segnale_metriche);
     end
 
-    % Segmenta il segnale nella zona di interesse
-    segment = sig_filt(start_idx:end_idx, :);
+    % Segmenta il segnale nella zona di interesse, utilizzando solo i
+    % canali di interesse
+    if separa_muscoli
+        if is_bicipite
+            segment_metrics = segnale_metriche(start_idx:end_idx, 1:n_channel/2);       
+            segment_cv = segnale_cv(start_idx:end_idx, 1:size(segnale_cv,2)/2);
+        else
+            segment_metrics = segnale_metriche(start_idx:end_idx, n_channel/2+1:n_channel);
+            segment_cv = segnale_cv(start_idx:end_idx, size(segnale_cv,2)/2+1:size(segnale_cv,2));
+        end
+    else
+        segment_metrics = segnale_metriche(start_idx:end_idx, :);      
+        segment_cv = segnale_cv(start_idx:end_idx, :);
+    end
 
     % Calcola le varie metriche per la finedtra corretta
-    [rms(:, j), arv(:, j), mnf(:, j), mdf(:, j), cv(j)] = FatiguePlot(segment, s1, s2, f_sample, IED);
+    [rms(:, j), arv(:, j), mnf(:, j), mdf(:, j), cv(:,j)] = FatiguePlot(segment_metrics, f_sample, IED, segment_cv);
 end
+
+%cv = sqrt(cv.*cv); % Ci sono dei valori negativi, DA CAPIRE PERCHÉ
 
 asse_tempi = (0:numero_finestre-1) * risoluzione_calcolo;
 
-figure
-plot(asse_tempi,rms./rms(:,1))
-hold on
-plot(asse_tempi, arv./arv(:,1))
-hold on
-plot(asse_tempi, mnf./mnf(:,1))
-hold on 
-plot(asse_tempi, mdf./mdf(:,1))
-hold on
-plot(asse_tempi, cv/cv(1))
-legend('RMS', 'ARV', 'MDF', 'Mean CV')
-xlabel('Time [s]')
-ylabel('Normalized unit')
+% Fatigue plot normalizzati
+if mostra_fatigue_normalizzati_singoli
+    figure
+    plot(asse_tempi,rms./rms(:,1))
+    hold on
+    plot(asse_tempi, arv./arv(:,1))
+    hold on
+    plot(asse_tempi, mnf./mnf(:,1))
+    hold on 
+    plot(asse_tempi, mdf./mdf(:,1))
+    hold on
+    plot(asse_tempi, cv/cv(1))
+    legend('RMS', 'ARV', 'MNF', 'MDF', 'CV')
+    xlabel('Time [s]')
+    ylabel('Normalized unit')
+end
 
 % Calcoli andamenti medi tra i vari canali
 mean_rms = mean(rms);   % Mean lavora sulla prima dimensione non unitaria
 mean_arv = mean(arv);
 mean_mnf = mean(mnf);
 mean_mdf = mean(mdf);
-mean_cv = mean(cv);
+mean_cv = mean(cv);           % Si lascia così per leggibilità del codice successivo, per come è calcolato cv è già un valore medio, avendo usato la stima multicanale
 
-figure
-plot(asse_tempi,mean_rms/mean_rms(1))
-hold on
-plot(asse_tempi, mean_arv/mean_arv(1))
-hold on
-plot(asse_tempi, mean_mnf./mean_mnf(1))
-hold on 
-plot(asse_tempi, mean_mdf/mean_mdf(1))
-hold on
-plot(asse_tempi, mean_cv/mean_cv(1))
-legend('Mean RMS', 'Mean ARV', 'Mean MDF', 'Mean CV')
-xlabel('Time [s]')
-ylabel('Normalized unit')
+% Fatigue plot valori medi normalizzati
+if mostra_fatigue_normalizzati__medi
+    figure
+    plot(asse_tempi,mean_rms/mean_rms(1))
+    hold on
+    plot(asse_tempi, mean_arv/mean_arv(1))
+    hold on
+    plot(asse_tempi, mean_mnf./mean_mnf(1))
+    hold on 
+    plot(asse_tempi, mean_mdf/mean_mdf(1))
+    hold on
+    plot(asse_tempi, mean_cv/mean_cv(1))
+    
+    legend('Mean RMS', 'Mean ARV', 'Mean MNF', 'Mean MDF', 'Mean CV')
+    xlabel('Time [s]')
+    ylabel('Normalized unit')
+end
+
+% Fatigue plot con subplot, valori non normalizzati
+if mostra_fatigue_singoli
+    figure 
+    subplot(2,2,1)
+    plot(asse_tempi,rms)
+    subtitle("Valori RMS per canale")
+    xlabel('Time [s]')
+    ylabel('Amplitude [mv?]')
+    
+    subplot(2,2,2)
+    plot(asse_tempi,cv)
+    subtitle("Valore medio CV")
+    xlabel('Time [s]')
+    ylabel('Speed [m/s]')
+    
+    subplot(2,2,3)
+    plot(asse_tempi,mdf)
+    subtitle("Valori MDF per canale")
+    xlabel('Time [s]')
+    ylabel('Frequency [Hz]')
+    
+    subplot(2,2,4)
+    plot(asse_tempi,mnf)
+    subtitle("Valori MNF per canale")
+    xlabel('Time [s]')
+    ylabel('Frequency [Hz]')
+end
+
+if mostra_fatigue_medi   % Dovrebbero essere i grafici richiesti dal Mister
+    figure 
+    subplot(1,5,1)
+    plot(asse_tempi,mean_rms)
+    subtitle("Valore medio RMS")
+    xlabel('Time [s]')
+    ylabel('Amplitude [mv?]')
+
+    subplot(1,5,2)
+    plot(asse_tempi,mean_arv)
+    subtitle("Valore medio ARV")
+    xlabel('Time [s]')
+    ylabel('Amplitude [mv?]')
+    
+    subplot(1,5,3)
+    plot(asse_tempi,mean_cv)
+    subtitle("Valore medio CV")
+    xlabel('Time [s]')
+    ylabel('Speed [m/s]')
+    
+    subplot(1,5,4)
+    plot(asse_tempi,mean_mdf)
+    subtitle("Valore medio MDF")
+    xlabel('Time [s]')
+    ylabel('Frequency [Hz]')
+    
+    subplot(1,5,5)
+    plot(asse_tempi,mean_mnf)
+    subtitle("Valore medio MNF")
+    xlabel('Time [s]')
+    ylabel('Frequency [Hz]')
+end
+%% =========================================================================
 
 
-%% Definizioni funzioni custom
+
+
+
+%% ========================= Definizioni funzioni custom =========================
 
 % Presa dal loro script
 function []=MyPlotNormalized(fig,x,y)
