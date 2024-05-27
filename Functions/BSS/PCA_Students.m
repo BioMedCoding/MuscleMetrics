@@ -25,7 +25,8 @@ fH=[300 350];
 
 %% faccio in modo che i 2 segnali siano ortogonali    
     % Basato su ortonormalizzazione di Schmitt
-input_signal(1,:)=input_signal(1,:)-(input_signal(1,:)*input_signal(2,:)')/length(input_signal)*input_signal(2,:);
+%input_signal(1,:)=input_signal(1,:)-(input_signal(1,:)*input_signal(2,:)')/length(input_signal)*input_signal(2,:);
+input_signal(1,:)=input_signal(1,:)-(input_signal(1,:)*input_signal(2,:)')/(input_signal(2,:)*input_signal(2,:)')*input_signal(2,:);
 
 %% definisco il modello di mixing e il rumore
 N=2;
