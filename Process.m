@@ -237,6 +237,7 @@ arv = zeros(n_channel_metrics,n_window);
 mnf = zeros(n_channel_metrics,n_window);
 mdf = zeros(n_channel_metrics,n_window);
 cv = zeros(n_channel_cv-1,n_window);
+cv_overall = zeros(1,n_window);
 
 
 for j = 1:n_window
@@ -253,7 +254,7 @@ for j = 1:n_window
    
 
     % Calculate the various metrics for the correct window.
-    [rms(:, j), arv(:, j), mnf(:, j), mdf(:, j), cv(:,j)] = FatiguePlot(segment_metrics, f_sample, IED, segment_cv);
+    [rms(:, j), arv(:, j), mnf(:, j), mdf(:, j), cv(:,j), cv_overall(j)] = FatiguePlot(segment_metrics, f_sample, IED, segment_cv);
 end
 
 %cv = sqrt(cv.*cv); % Ci sono dei valori negativi, DA CAPIRE PERCHÉ

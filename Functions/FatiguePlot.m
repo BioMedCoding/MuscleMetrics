@@ -1,4 +1,4 @@
-function [rms, arv, mnf, mdf, cv_total] = FatiguePlot(sig_valori, fs, IED, sig_cv)
+function [rms, arv, mnf, mdf, cv_total, cv_overall] = FatiguePlot(sig_valori, fs, IED, sig_cv)
 
 % input
 % sig: matrix N x M, with N samples and N channels
@@ -51,9 +51,8 @@ end
 
 cv_total = cv;
 
-% Per adattarlo alla funzione
-% IED = IED/1000;
-% 
-% cv_total = mle_CV_est(sig_cv(:,:)', IED, fs);
+%Per adattarlo alla funzione
+IED = IED/1000;
+cv_overall = mle_CV_est(sig_cv(:,:)', IED, fs);
 
 end
