@@ -2,6 +2,9 @@
 % At the current state, the estimation of the CV appears to be incorrect; 
 % there is one channel in particular that reports non-physiological values.
 
+% Trasposizione matrice segnale
+% Dio cane la CV continua a non funzionare né con calcolo diretto né con
+% calcolo complessivo
 
 
 %% ========================== Initialization =============================
@@ -12,55 +15,44 @@ clc
 
 
 %% ========================= General parameters ============================
-%mostra_plot_import = true;
+
 show_import_plot = true;
-%mostra_plot_differenziali = true;
 show_differential_plot = true;
 
-%mostra_fatigue_normalizzati_singoli = true;
 show_normalized_single_fatigue = true;
-%mostra_fatigue_normalizzati__medi = true;
 show_normalized_mean_fatigue = true;
-%mostra_fatigue_singoli = true;
 show_single_fatigue = true;
-%mostra_fatigue_medi = true;
 show_mean_fatigue = true;
 
-%separa_muscoli = true;      % Se vero, va a passare alla funzione di analisi solamente la porzione di analisi definita dalla variabile is_bicipite
-separate_muscles = true;      % If true, it will pass to the analysis function only the portion of analysis defined by the variable is_biceps.
+separate_muscles = true;              % If true, it will pass to the analysis function only the portion of analysis defined by the variable is_biceps.
 
-is_biceps = true;         
-% If true, only the first 8 channels of the matrix are passed to the analysis; otherwise, the last 8 channels are passed.
-plot_channel = 1;            % Until resolved, it must be between 1 and 4 to avoid problems.
-offset_channel = 8;          % Column separating the first and second signal (bi and tri)
+is_biceps = false;                     % If true, only the first 8 channels of the matrix are passed to the analysis; otherwise, the last 8 channels are passed.
+plot_channel = 1;                     % Until resolved, it must be between 1 and 4 to avoid problems.
+muscle_channel = 8;                   % Column separating the first and second signal (bi and tri)
 
+fatigue_resolution = 0.5;             % Fatigue plot resolution in seconds
 
-%risoluzione_calcolo = 0.5;  % Risoluzione del fatigue plot, in secondi
-fatigue_resolution = 0.5;  % Fatigue plot resolution in seconds
+metrics_sig_name = 'single_diff';     % Nome del segnale che si vuole utilizzare nella parte dedicata ai fatigue plot per le metriche di ampiezza e frequenza
+                                      % Available possibilities are: 'mono', 'single_diff', 'double_diff'
 
-%nome_segnale_calcolo_metriche
-metrics_sig_name = 'sig_singolo_diff';     % Nome del segnale che si vuole utilizzare nella parte dedicata ai fatigue plot per le metriche di ampiezza e frequenza
-                                % Le possibilità sono: 'sig_mono', 'sig_singolo_diff', 'sig_doppio_diff'
-
-%nome_segnale_calcolo_cv
-cv_sig_name = 'sig_singolo_diff';   % Name of the signal to be used in the section dedicated to fatigue plots for CV metrics.
-                          % Available possibilities are:       'sig_mono', 'sig_singolo_diff', 'sig_doppio_diff'
-
+cv_sig_name = 'single_diff';          % Name of the signal to be used in the section dedicated to fatigue plots for CV metrics.
+                                      % Available possibilities are:       'mono', 'single_diff', 'double_diff'
 
 IED = 5;                                            % IED in mm
+
+remove_outliers = true;
 %% =========================================================================
 
 
 
-%% ======================== Parametri filtraggio ===========================
+%% ======================== Filter parameters ===========================
 filter_type = "cheby2";
-f_sample = 2048;                                    % Sample frequency
-f_cut_low = 20;                                     % Minimum frequency of the passband filter
-f_cut_high = 400;                                   % Maximum frequency of the passband filter
-f_notch = 50;                                       % Notch frequency
-f_envelope = 4;                                     % Envelope frequency
-percH = 1.3;                                        % High frequency percentage (to specify the filter caracteristic)
-visualisation = "no";                               % Show filtering plots
+f_sample = 2048;                       % Sample frequency
+f_cut_low = 20;                        % Minimum frequency of the passband filter
+f_cut_high = 400;                      % Maximum frequency of the passband filter
+f_notch = 50;                          % Notch frequency
+percH = 1.3;                           % High frequency percentage (to specify the filter caracteristic)
+visualisation = "no";                  % Show filtering plots
 
 %% =========================================================================
 
@@ -148,68 +140,72 @@ rmdir('tmpopen','s');
 
 
 %% ========================= Signal filtering =========================
+
 data = data';
 n_samples = size(data,1);
-n_channel = size(data,2); 
-sig_mono= zeros(length(data),n_channel);
+n_channel_total = size(data,2);
+
+bic = data(:, 1:muscle_channel);
+tri = data(:, muscle_channel+1:n_channel_total);
+
+bic_mono = zeros(n_samples, muscle_channel);
+tri_mono = zeros(n_samples, muscle_channel);
 
 % Signal filtering
-for i=1:n_channel
-    sig_mono(:,i) = filter_general(data(:,i),filter_type,f_sample,"fL",f_cut_low,"fH",f_cut_high,"fN",f_notch,"visualisation",visualisation);
+for i=1:muscle_channel
+    bic_mono(:,i) = filter_general(bic(:,i),filter_type,f_sample,"fL",f_cut_low,"fH",f_cut_high,"fN",f_notch,"visualisation",visualisation);
+    tri_mono(:,i) = filter_general(tri(:,i),filter_type,f_sample,"fL",f_cut_low,"fH",f_cut_high,"fN",f_notch,"visualisation",visualisation);
 end
+
 %% =========================================================================
 
 
 
 %% ========================= Creation of single and double differential signals =========================
 
-n_channel_single_diff = n_channel/2;
-n_channel_double_diff = n_channel_single_diff/2;
+n_channel_single_diff = size(bic_mono,2)-1;      % I due set intanto sono uguali
+n_channel_double_diff = n_channel_single_diff-1;
 
-% Initialization of the differential signals matrix
-sig_single_diff = zeros(n_samples, n_channel_single_diff);
-sig_double_diff = zeros(n_samples, n_channel_double_diff);
+% Create the single differential matrix
+bic_single_diff = diff(bic_mono')';  % Doppia trasposizione per adattare a funzione e tornare ad originale
+tri_single_diff = diff(tri_mono')';
 
-% Populate single differential matrix
-for i = 1:n_channel_single_diff
-    channel_1 = 2 * i - 1;
-    channel_2 = 2 * i;
-    sig_single_diff(:, i) = sig_mono(:, channel_2) - sig_mono(:, channel_1);
-end
-
-% Populate double differential matrix
-for i = 1:n_channel_double_diff
-    channel_1 = 2 * i - 1;
-    channel_2 = 2 * i;
-    sig_double_diff(:, i) = sig_single_diff(:, channel_2) - sig_single_diff(:, channel_1);
-end
+% Create the double differential matrix
+bic_double_diff = diff(bic_single_diff')';
+tri_double_diff = diff(tri_single_diff')';
 
 % Control plot for mono, single, and double differential signals
 if show_differential_plot
     if is_biceps
         subplot(3,1,1)
-        plot(sig_mono(:,plot_channel))
-        subtitle(['Segnale monopolare canale ' num2str(plot_channel)]);
+        plot(bic_mono(:,plot_channel))
+        subtitle(['Monopolar signal - channel ' num2str(plot_channel)]);
     
         subplot(3,1,2)
-        plot(sig_single_diff(:,plot_channel))
-        subtitle(['Segnale singolo differenziale canale ' num2str(plot_channel)]);
+        plot(bic_single_diff(:,plot_channel))
+        subtitle(['Single differential signal - channel ' num2str(plot_channel)]);
     
         subplot(3,1,3)
-        plot(sig_double_diff(:,plot_channel))
-        subtitle(['Segnale doppio differenziale canale ' num2str(plot_channel)]);
+        plot(bic_double_diff(:,plot_channel))
+        subtitle(['Double differential signal - channel ' num2str(plot_channel)]);
+
+        linkaxes([subplot(3,1,1), subplot(3,1,2), subplot(3,1,3)], 'x')
+
     else
         subplot(3,1,1)
-        plot(sig_mono(:,plot_channel+offset_channel))
-        subtitle(['Segnale monopolare canale ' num2str(plot_channel)]);
+        plot(tri_mono(:,plot_channel))
+        subtitle(['Monopolar signal - channel ' num2str(plot_channel)]);
     
         subplot(3,1,2)
-        plot(sig_single_diff(:,plot_channel+offset_channel/2))       % Correzione valore avendo meno colonne
-        subtitle(['Segnale singolo differenziale canale ' num2str(plot_channel)]);
+        plot(tri_single_diff(:,plot_channel))       % Correzione valore avendo meno colonne
+        subtitle(['Single differential signal - channel ' num2str(plot_channel)]);
     
         subplot(3,1,3)
-        plot(sig_double_diff(:,plot_channel+offset_channel/4))        % Correzione valore avendo meno colonne
-        subtitle(['Segnale doppio differenziale canale ' num2str(plot_channel)]);
+        plot(tri_double_diff(:,plot_channel))        % Correzione valore avendo meno colonne
+        subtitle(['Double differential signal - channel ' num2str(plot_channel)]);
+
+        linkaxes([subplot(3,1,1), subplot(3,1,2), subplot(3,1,3)], 'x')
+
 
     end
 end
@@ -225,88 +221,99 @@ step = f_sample*fatigue_resolution;
 n_window = floor(n_samples/step);
 
 % Load the signals indicated at the beginning for subsequent analysis
-eval(['segnale_metriche = ', metrics_sig_name, ';']);
-eval(['segnale_cv = ', cv_sig_name, ';']);
-
-if separate_muscles
-    rms = zeros(n_channel/2, n_window);  % Divided by 2 because we are always working with only half of the sensors
-    arv = zeros(n_channel/2,n_window);
-    mnf = zeros(n_channel/2,n_window);
-    mdf = zeros(n_channel/2,n_window);
-    cv = zeros(size(segnale_cv,2)/2,n_window);
+if is_biceps
+    eval(['metrics_signal = ','bic_', metrics_sig_name, ';']);
+    eval(['cv_signal = ','bic_', cv_sig_name, ';']);
 else
-    rms = zeros(n_channel, n_window);
-    arv = zeros(n_channel,n_window);
-    mnf = zeros(n_channel,n_window);
-    mdf = zeros(n_channel,n_window);
-    cv = zeros(size(segnale_cv,2),n_window);
+    eval(['metrics_signal = ','tri_', metrics_sig_name, ';']);
+    eval(['cv_signal = ','tri_', cv_sig_name, ';']);
 end
+
+n_channel_metrics = size(metrics_signal,2);
+n_channel_cv = size(cv_signal,2);
+
+rms = zeros(n_channel_metrics, n_window);
+arv = zeros(n_channel_metrics,n_window);
+mnf = zeros(n_channel_metrics,n_window);
+mdf = zeros(n_channel_metrics,n_window);
+cv = zeros(n_channel_cv-1,n_window);
+
 
 for j = 1:n_window
     start_idx = (j-1) * step + 1;
     end_idx = start_idx + step - 1;
     
-    if end_idx > length(segnale_metriche)
-        end_idx = length(segnale_metriche);
+    if end_idx > length(metrics_signal)
+        end_idx = length(metrics_signal);
     end
 
     % Segment the signal in the region of interest, using only the channels of interest.
-    if separate_muscles
-        if is_biceps
-            segment_metrics = segnale_metriche(start_idx:end_idx, 1:n_channel/2);       
-            segment_cv = segnale_cv(start_idx:end_idx, 1:size(segnale_cv,2)/2);
-        else
-            segment_metrics = segnale_metriche(start_idx:end_idx, n_channel/2+1:n_channel);
-            segment_cv = segnale_cv(start_idx:end_idx, size(segnale_cv,2)/2+1:size(segnale_cv,2));
-        end
-    else
-        segment_metrics = segnale_metriche(start_idx:end_idx, :);      
-        segment_cv = segnale_cv(start_idx:end_idx, :);
-    end
+    segment_metrics = metrics_signal(start_idx:end_idx, :);       
+    segment_cv = cv_signal(start_idx:end_idx, :);
+   
 
     % Calculate the various metrics for the correct window.
     [rms(:, j), arv(:, j), mnf(:, j), mdf(:, j), cv(:,j)] = FatiguePlot(segment_metrics, f_sample, IED, segment_cv);
 end
 
 %cv = sqrt(cv.*cv); % Ci sono dei valori negativi, DA CAPIRE PERCHÉ
+if remove_outliers
+    cv_cleaned = excludeOutliers(cv,1); 
+    mean_cv = mean(cv);
+    mean_cv_cleaned = mean(cv_cleaned);
+
+    figure
+    hold on
+    title('Comparison in mean cv values original vs outlier_cleaned')
+    plot(mean_cv)
+    plot(mean_cv_cleaned)
+    legend('Original', 'Outliers_cleaned')
+
+    cv = cv_cleaned;
+end
+
+
 
 time_axis = (0:n_window-1) * fatigue_resolution;
 
 % Normalized fatigue plot
 if show_normalized_single_fatigue
+    
     figure
+    hold on
+    title('Normalized fatigue plot, single channels')
+
     plot(time_axis,rms./rms(:,1))
-    hold on
     plot(time_axis, arv./arv(:,1))
-    hold on
     plot(time_axis, mnf./mnf(:,1))
-    hold on 
     plot(time_axis, mdf./mdf(:,1))
-    hold on
     plot(time_axis, cv/cv(1))
     legend('RMS', 'ARV', 'MNF', 'MDF', 'CV')
     xlabel('Time [s]')
     ylabel('Normalized unit')
 end
 
+% Exclude outliers values from the data
+
 % Calculate mean values across the various channels
 mean_rms = mean(rms);   % Mean works on the first non unitary dimension
 mean_arv = mean(arv);
 mean_mnf = mean(mnf);
 mean_mdf = mean(mdf);
-mean_cv = mean(cv);           
+mean_cv = mean(cv); 
+  
 
 % Mean normalized fatigue plot
 if show_normalized_mean_fatigue
+    
     figure
+    hold on
+    title('Normalized fatigue plot, mean values')
+
     plot(time_axis,mean_rms/mean_rms(1))
-    hold on
     plot(time_axis, mean_arv/mean_arv(1))
-    hold on
     plot(time_axis, mean_mnf./mean_mnf(1))
-    hold on 
     plot(time_axis, mean_mdf/mean_mdf(1))
-    hold on
     plot(time_axis, mean_cv/mean_cv(1))
     
     legend('Mean RMS', 'Mean ARV', 'Mean MNF', 'Mean MDF', 'Mean CV')
@@ -316,7 +323,9 @@ end
 
 % Fatigue plot with subplot, non-normalized values
 if show_single_fatigue
-    figure 
+    
+    figure
+    sgtitle('Fatigue plot, single channels')
     subplot(2,2,1)
     plot(time_axis,rms)
     subtitle("Valori RMS per canale")
@@ -343,7 +352,9 @@ if show_single_fatigue
 end
 
 if show_mean_fatigue   % Dovrebbero essere i grafici richiesti dal Mister
+
     figure 
+    sgtitle('Fatigue plot, mean values')
     subplot(1,5,1)
     plot(time_axis,mean_rms)
     subtitle("Valore medio RMS")
@@ -402,3 +413,32 @@ function []=MyPlot(fig,x,y,shift)
         hold on
     end
 end
+
+function clean_matrix = excludeOutliers(original_matrix, dimension)
+    
+        % dimension 1 = columns, dimensione 2 = rows
+
+
+        % Calcolo valore mediano 
+        median_values = median(original_matrix, dimension);
+
+        % Calcolo deviazione assoluta dalla mediana
+        threshold = mad(original_matrix,dimension);
+
+        lower_limit = max(median_values - 3*threshold,0);
+        higher_limit = min(median_values +3*threshold,10);
+
+        if dimension == 1
+            direction_elimination = 2;
+        else
+            direction_elimination = 1;
+        end
+
+        % Identificare le righe che non contengono outlier
+        rowsToKeep = all(original_matrix >= lower_limit & original_matrix <= higher_limit,direction_elimination);
+    
+        % Creare la matrice pulita escludendo le righe con outlier
+        clean_matrix = original_matrix(rowsToKeep, :);
+
+ end
+    

@@ -10,7 +10,7 @@ rms = zeros(1, num_channels);
 arv = zeros(1, num_channels);
 mnf = zeros(1, num_channels);
 mdf = zeros(1, num_channels);
-cv = zeros(1, size(sig_cv,2));
+cv = zeros(1, size(sig_cv,2)-1); % -1 aggiunto per non avere l'ultimo valore di 0
 
 % Iera calcolo sui singoli canali
 for ch = 1:num_channels
@@ -42,7 +42,7 @@ num_channels = size(sig_cv, 2);
 for ch = 1:(num_channels-1)
         s1 = sig_cv(:,ch);
         s2 = sig_cv(:,ch+1);
-        [xc, del] = xcorr(s2, s1, 10);
+        [xc, del] = xcorr(s2, s1, 6);
         [mm, I] = max(xc);
         start = del(I);
         d = delay(real(fft(s2)), imag(fft(s2)), real(fft(s1)), imag(fft(s1)), start);
